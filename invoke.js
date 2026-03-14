@@ -4,10 +4,18 @@ import { RpcProvider, Account, Contract } from 'starknet';
 
 const DEFAULTS = {
     RPC_URL: 'http://localhost:9944',
-    BLOCK_IDENTIFIER: 'pre_confirmed',
-    RESOURCE_BOUNDS_MAX_AMOUNT: '0x09ba4b0',
-    RESOURCE_BOUNDS_MAX_PRICE: '0x0186a0',
-    RETRY_INTERVAL: '100',
+    BLOCK_IDENTIFIER: 'latest',
+    // L2 gas — actual price ~8B
+    L2_GAS_MAX_AMOUNT: '0x200000',
+    L2_GAS_MAX_PRICE: '0x746a528800',
+    // L1 gas — actual price ~51.9T
+    L1_GAS_MAX_AMOUNT: '0x100',
+    L1_GAS_MAX_PRICE: '0x3e8d4a510000',
+    // L1 data gas — actual price ~51K
+    L1_DATA_GAS_MAX_AMOUNT: '0x400',
+    L1_DATA_GAS_MAX_PRICE: '0x20000',
+
+    RETRY_INTERVAL: '5000',
 };
 
 // ─── Configuration ───────────────────────────────────────────────────────────
@@ -25,16 +33,22 @@ const CONFIG = {
     functionName: process.env.FUNCTION_NAME,
     functionArgs: process.env.FUNCTION_ARGS, // comma-separated values, e.g. "42" or "0x1,100"
 
-    resourceBoundsMaxAmount: BigInt(process.env.RESOURCE_BOUNDS_MAX_AMOUNT || DEFAULTS.RESOURCE_BOUNDS_MAX_AMOUNT),
-    resourceBoundsMaxPrice: BigInt(process.env.RESOURCE_BOUNDS_MAX_PRICE || DEFAULTS.RESOURCE_BOUNDS_MAX_PRICE),
-
     retryInterval: Number(process.env.RETRY_INTERVAL || DEFAULTS.RETRY_INTERVAL),
 };
 
 const RESOURCE_BOUNDS = {
-    l2_gas: { max_amount: CONFIG.resourceBoundsMaxAmount, max_price_per_unit: CONFIG.resourceBoundsMaxPrice },
-    l1_gas: { max_amount: CONFIG.resourceBoundsMaxAmount, max_price_per_unit: CONFIG.resourceBoundsMaxPrice },
-    l1_data_gas: { max_amount: CONFIG.resourceBoundsMaxAmount, max_price_per_unit: CONFIG.resourceBoundsMaxPrice },
+    l2_gas: {
+        max_amount: BigInt(process.env.L2_GAS_MAX_AMOUNT || DEFAULTS.L2_GAS_MAX_AMOUNT),
+        max_price_per_unit: BigInt(process.env.L2_GAS_MAX_PRICE || DEFAULTS.L2_GAS_MAX_PRICE),
+    },
+    l1_gas: {
+        max_amount: BigInt(process.env.L1_GAS_MAX_AMOUNT || DEFAULTS.L1_GAS_MAX_AMOUNT),
+        max_price_per_unit: BigInt(process.env.L1_GAS_MAX_PRICE || DEFAULTS.L1_GAS_MAX_PRICE),
+    },
+    l1_data_gas: {
+        max_amount: BigInt(process.env.L1_DATA_GAS_MAX_AMOUNT || DEFAULTS.L1_DATA_GAS_MAX_AMOUNT),
+        max_price_per_unit: BigInt(process.env.L1_DATA_GAS_MAX_PRICE || DEFAULTS.L1_DATA_GAS_MAX_PRICE),
+    },
 };
 
 // ─── Main ────────────────────────────────────────────────────────────────────
