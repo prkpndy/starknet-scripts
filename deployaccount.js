@@ -12,12 +12,22 @@ import {
 
 const DEFAULTS = {
     RPC_URL: 'http://localhost:9944',
-    BLOCK_IDENTIFIER: 'pre_confirmed',
-    FEE_TOKEN_ADDRESS: '0x4defde0f0a7e7734ca8d3f2c9eb8bebf7cc21a23fae13d3e9b5d697f60465bc',
-    ACCOUNT_CLASS_HASH: '0xe81f6009f96661c969f14c40d8b453cc40fc6c674607a61c23bb3563709e2a',
-    RESOURCE_BOUNDS_MAX_AMOUNT: '0x09ba4b0',
-    RESOURCE_BOUNDS_MAX_PRICE: '0x0186a0',
-    RETRY_INTERVAL: '100',
+    BLOCK_IDENTIFIER: 'latest',
+    FEE_TOKEN_ADDRESS: '0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D',
+    ACCOUNT_TYPE: 'oz', // 'oz' or 'argent'
+    OZ_CLASS_HASH: '0xe81f6009f96661c969f14c40d8b453cc40fc6c674607a61c23bb3563709e2a',
+    ARGENT_CLASS_HASH: '0x036078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f',
+    // L2 gas — actual price ~8B
+    L2_GAS_MAX_AMOUNT: '0x200000',
+    L2_GAS_MAX_PRICE: '0x746a528800',
+    // L1 gas — actual price ~51.9T
+    L1_GAS_MAX_AMOUNT: '0x100',
+    L1_GAS_MAX_PRICE: '0x3e8d4a510000',
+    // L1 data gas — actual price ~51K
+    L1_DATA_GAS_MAX_AMOUNT: '0x400',
+    L1_DATA_GAS_MAX_PRICE: '0x20000',
+
+    RETRY_INTERVAL: '5000',
 };
 
 // ─── Configuration ───────────────────────────────────────────────────────────
@@ -32,20 +42,28 @@ const CONFIG = {
     funderPrivateKey: process.env.FUNDER_PRIVATE_KEY,
 
     feeTokenAddress: process.env.FEE_TOKEN_ADDRESS || DEFAULTS.FEE_TOKEN_ADDRESS,
-    accountClassHash: process.env.ACCOUNT_CLASS_HASH || DEFAULTS.ACCOUNT_CLASS_HASH,
+    accountType: (process.env.ACCOUNT_TYPE || DEFAULTS.ACCOUNT_TYPE).toLowerCase(),
+    ozClassHash: process.env.OZ_CLASS_HASH || DEFAULTS.OZ_CLASS_HASH,
+    argentClassHash: process.env.ARGENT_CLASS_HASH || DEFAULTS.ARGENT_CLASS_HASH,
 
     transferAmount: process.env.TRANSFER_AMOUNT ? BigInt(process.env.TRANSFER_AMOUNT) : undefined,
-
-    resourceBoundsMaxAmount: BigInt(process.env.RESOURCE_BOUNDS_MAX_AMOUNT || DEFAULTS.RESOURCE_BOUNDS_MAX_AMOUNT),
-    resourceBoundsMaxPrice: BigInt(process.env.RESOURCE_BOUNDS_MAX_PRICE || DEFAULTS.RESOURCE_BOUNDS_MAX_PRICE),
 
     retryInterval: Number(process.env.RETRY_INTERVAL || DEFAULTS.RETRY_INTERVAL),
 };
 
 const RESOURCE_BOUNDS = {
-    l2_gas: { max_amount: CONFIG.resourceBoundsMaxAmount, max_price_per_unit: CONFIG.resourceBoundsMaxPrice },
-    l1_gas: { max_amount: CONFIG.resourceBoundsMaxAmount, max_price_per_unit: CONFIG.resourceBoundsMaxPrice },
-    l1_data_gas: { max_amount: CONFIG.resourceBoundsMaxAmount, max_price_per_unit: CONFIG.resourceBoundsMaxPrice },
+    l2_gas: {
+        max_amount: BigInt(process.env.L2_GAS_MAX_AMOUNT || DEFAULTS.L2_GAS_MAX_AMOUNT),
+        max_price_per_unit: BigInt(process.env.L2_GAS_MAX_PRICE || DEFAULTS.L2_GAS_MAX_PRICE),
+    },
+    l1_gas: {
+        max_amount: BigInt(process.env.L1_GAS_MAX_AMOUNT || DEFAULTS.L1_GAS_MAX_AMOUNT),
+        max_price_per_unit: BigInt(process.env.L1_GAS_MAX_PRICE || DEFAULTS.L1_GAS_MAX_PRICE),
+    },
+    l1_data_gas: {
+        max_amount: BigInt(process.env.L1_DATA_GAS_MAX_AMOUNT || DEFAULTS.L1_DATA_GAS_MAX_AMOUNT),
+        max_price_per_unit: BigInt(process.env.L1_DATA_GAS_MAX_PRICE || DEFAULTS.L1_DATA_GAS_MAX_PRICE),
+    },
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -118,16 +136,34 @@ async function deployAccount() {
     const privateKey = stark.randomAddress();
     const publicKey = ec.starkCurve.getStarkKey(privateKey);
 
+    const isArgent = CONFIG.accountType === 'argent';
+    const classHash = isArgent ? CONFIG.argentClassHash : CONFIG.ozClassHash;
+
+    // Build constructor calldata based on account type
+    let constructorCalldata;
+    if (isArgent) {
+        // Argent: constructor(owner: Signer, guardian: Option<Signer>)
+        // Signer::Starknet(StarknetSigner { pubkey }) = [0, pubkey]
+        // Option::None for guardian = [1]
+        constructorCalldata = CallData.compile([
+            '0',       // Signer variant index: Starknet = 0
+            publicKey, // StarknetSigner.pubkey
+            '1',       // Option variant index: None = 1
+        ]);
+    } else {
+        // OZ: constructor(public_key: felt252)
+        constructorCalldata = CallData.compile({ publicKey });
+    }
+
     // Calculate future address of the account
-    const constructorCalldata = CallData.compile({ publicKey });
     const accountAddress = hash.calculateContractAddressFromHash(
         publicKey,
-        CONFIG.accountClassHash,
+        classHash,
         constructorCalldata,
         0
     );
 
-    console.log('New OZ account:');
+    console.log(`New ${isArgent ? 'Argent' : 'OZ'} account:`);
     console.log('  privateKey =', privateKey);
     console.log('  publicKey  =', publicKey);
     console.log('  address    =', accountAddress);
@@ -137,28 +173,53 @@ async function deployAccount() {
         recipient: accountAddress,
         amount: { low: CONFIG.transferAmount, high: 0 },
     });
+    const nonce = await provider.getNonceForAddress(CONFIG.funderAddress, 'latest');
+    console.log('Funder nonce:', nonce);
     const transferResult = await funderAccount.execute(transferCalldata, {
-        blockIdentifier: CONFIG.blockIdentifier,
         resourceBounds: RESOURCE_BOUNDS,
+        nonce,
     });
     await provider.waitForTransaction(transferResult.transaction_hash, {
         retryInterval: CONFIG.retryInterval,
+        successStates: ['ACCEPTED_ON_L2', 'ACCEPTED_ON_L1'],
     });
     console.log('Funded new account, tx:', transferResult.transaction_hash);
+
+    // Wait for balance to be available
+    let balance = 0n;
+    while (balance === 0n) {
+        const result = await feeTokenContract.balanceOf(accountAddress);
+        balance = BigInt(result);
+        if (balance === 0n) {
+            console.log('Waiting for balance to be reflected...');
+            await new Promise(r => setTimeout(r, CONFIG.retryInterval));
+        }
+    }
+    console.log('New account balance:', balance.toString());
 
     // Deploy the account
     const newAccount = new Account({
         provider,
         address: accountAddress,
         signer: privateKey,
+        cairoVersion: '1',
+        transactionVersion: '0x3',
     });
+
+    // Deploy bounds — needs at least 560K L2 gas, plus L1 gas/data
+    // Ensure TRANSFER_AMOUNT is high enough to cover worst case (~2 STRK)
+    const deployResourceBounds = {
+        l2_gas: { max_amount: BigInt('0x100000'), max_price_per_unit: BigInt('0x746a528800') },
+        l1_gas: { max_amount: BigInt(1), max_price_per_unit: BigInt('0x2f132b6a8f98') },
+        l1_data_gas: { max_amount: BigInt('0x100'), max_price_per_unit: BigInt('0xca2f') },
+    };
 
     const { transaction_hash, contract_address } =
         await newAccount.deployAccount({
-            classHash: CONFIG.accountClassHash,
+            classHash,
             constructorCalldata: constructorCalldata,
             addressSalt: publicKey,
-        }, { resourceBounds: RESOURCE_BOUNDS });
+        }, { resourceBounds: deployResourceBounds });
     await provider.waitForTransaction(transaction_hash, {
         retryInterval: CONFIG.retryInterval,
     });
