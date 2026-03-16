@@ -17,16 +17,6 @@ const DEFAULTS = {
     ACCOUNT_TYPE: 'oz', // 'oz' or 'argent'
     OZ_CLASS_HASH: '0xe81f6009f96661c969f14c40d8b453cc40fc6c674607a61c23bb3563709e2a',
     ARGENT_CLASS_HASH: '0x036078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f',
-    // L2 gas — actual price ~8B
-    L2_GAS_MAX_AMOUNT: '0x200000',
-    L2_GAS_MAX_PRICE: '0x746a528800',
-    // L1 gas — actual price ~51.9T
-    L1_GAS_MAX_AMOUNT: '0x100',
-    L1_GAS_MAX_PRICE: '0x3e8d4a510000',
-    // L1 data gas — actual price ~51K
-    L1_DATA_GAS_MAX_AMOUNT: '0x400',
-    L1_DATA_GAS_MAX_PRICE: '0x20000',
-
     RETRY_INTERVAL: '5000',
 };
 
@@ -49,21 +39,6 @@ const CONFIG = {
     transferAmount: process.env.TRANSFER_AMOUNT ? BigInt(process.env.TRANSFER_AMOUNT) : undefined,
 
     retryInterval: Number(process.env.RETRY_INTERVAL || DEFAULTS.RETRY_INTERVAL),
-};
-
-const RESOURCE_BOUNDS = {
-    l2_gas: {
-        max_amount: BigInt(process.env.L2_GAS_MAX_AMOUNT || DEFAULTS.L2_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L2_GAS_MAX_PRICE || DEFAULTS.L2_GAS_MAX_PRICE),
-    },
-    l1_gas: {
-        max_amount: BigInt(process.env.L1_GAS_MAX_AMOUNT || DEFAULTS.L1_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L1_GAS_MAX_PRICE || DEFAULTS.L1_GAS_MAX_PRICE),
-    },
-    l1_data_gas: {
-        max_amount: BigInt(process.env.L1_DATA_GAS_MAX_AMOUNT || DEFAULTS.L1_DATA_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L1_DATA_GAS_MAX_PRICE || DEFAULTS.L1_DATA_GAS_MAX_PRICE),
-    },
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -176,7 +151,6 @@ async function deployAccount() {
     const nonce = await provider.getNonceForAddress(CONFIG.funderAddress, 'latest');
     console.log('Funder nonce:', nonce);
     const transferResult = await funderAccount.execute(transferCalldata, {
-        resourceBounds: RESOURCE_BOUNDS,
         nonce,
     });
     await provider.waitForTransaction(transferResult.transaction_hash, {
@@ -206,20 +180,12 @@ async function deployAccount() {
         transactionVersion: '0x3',
     });
 
-    // Deploy bounds — needs at least 560K L2 gas, plus L1 gas/data
-    // Ensure TRANSFER_AMOUNT is high enough to cover worst case (~2 STRK)
-    const deployResourceBounds = {
-        l2_gas: { max_amount: BigInt('0x100000'), max_price_per_unit: BigInt('0x746a528800') },
-        l1_gas: { max_amount: BigInt(1), max_price_per_unit: BigInt('0x2f132b6a8f98') },
-        l1_data_gas: { max_amount: BigInt('0x100'), max_price_per_unit: BigInt('0xca2f') },
-    };
-
     const { transaction_hash, contract_address } =
         await newAccount.deployAccount({
             classHash,
             constructorCalldata: constructorCalldata,
             addressSalt: publicKey,
-        }, { resourceBounds: deployResourceBounds });
+        });
     await provider.waitForTransaction(transaction_hash, {
         retryInterval: CONFIG.retryInterval,
     });

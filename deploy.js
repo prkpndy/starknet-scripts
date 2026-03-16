@@ -5,16 +5,6 @@ import { RpcProvider, Account, CallData } from 'starknet';
 const DEFAULTS = {
     RPC_URL: 'http://localhost:9944',
     BLOCK_IDENTIFIER: 'latest',
-    // L2 gas — actual price ~8B
-    L2_GAS_MAX_AMOUNT: '0x200000',
-    L2_GAS_MAX_PRICE: '0x746a528800',
-    // L1 gas — actual price ~51.9T
-    L1_GAS_MAX_AMOUNT: '0x100',
-    L1_GAS_MAX_PRICE: '0x3e8d4a510000',
-    // L1 data gas — actual price ~51K
-    L1_DATA_GAS_MAX_AMOUNT: '0x400',
-    L1_DATA_GAS_MAX_PRICE: '0x20000',
-
     RETRY_INTERVAL: '5000',
     UNIQUE: '0', // UDC uniqueness flag
 };
@@ -35,21 +25,6 @@ const CONFIG = {
     unique: process.env.UNIQUE || DEFAULTS.UNIQUE,    // "1" for unique UDC deploy, "0" for not unique
 
     retryInterval: Number(process.env.RETRY_INTERVAL || DEFAULTS.RETRY_INTERVAL),
-};
-
-const RESOURCE_BOUNDS = {
-    l2_gas: {
-        max_amount: BigInt(process.env.L2_GAS_MAX_AMOUNT || DEFAULTS.L2_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L2_GAS_MAX_PRICE || DEFAULTS.L2_GAS_MAX_PRICE),
-    },
-    l1_gas: {
-        max_amount: BigInt(process.env.L1_GAS_MAX_AMOUNT || DEFAULTS.L1_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L1_GAS_MAX_PRICE || DEFAULTS.L1_GAS_MAX_PRICE),
-    },
-    l1_data_gas: {
-        max_amount: BigInt(process.env.L1_DATA_GAS_MAX_AMOUNT || DEFAULTS.L1_DATA_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L1_DATA_GAS_MAX_PRICE || DEFAULTS.L1_DATA_GAS_MAX_PRICE),
-    },
 };
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -101,7 +76,6 @@ async function deploy() {
             constructorCalldata,
             unique: CONFIG.unique === '1',
         },
-        { resourceBounds: RESOURCE_BOUNDS }
     );
 
     console.log('Deploy tx submitted:', result.transaction_hash);

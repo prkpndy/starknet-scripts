@@ -6,16 +6,6 @@ import { RpcProvider, Account } from 'starknet';
 const DEFAULTS = {
     RPC_URL: 'http://localhost:9944',
     BLOCK_IDENTIFIER: 'latest',
-    // L2 gas (execution) — actual price ~8B
-    L2_GAS_MAX_AMOUNT: '0x3000000',         // ~50M
-    L2_GAS_MAX_PRICE: '0x746a528800',       // ~500B (headroom over ~8B actual)
-    // L1 gas — actual price ~51.9T
-    L1_GAS_MAX_AMOUNT: '0x100',             // 256
-    L1_GAS_MAX_PRICE: '0x3e8d4a510000',     // ~68.7T
-    // L1 data gas — actual price ~51K
-    L1_DATA_GAS_MAX_AMOUNT: '0x400',        // 1024
-    L1_DATA_GAS_MAX_PRICE: '0x20000',       // 131072
-
     RETRY_INTERVAL: '100',
 };
 
@@ -34,21 +24,6 @@ const CONFIG = {
     casmPath: process.env.CASM_PATH,          // path to CASM JSON (.compiled_contract_class.json)
 
     retryInterval: Number(process.env.RETRY_INTERVAL || DEFAULTS.RETRY_INTERVAL),
-};
-
-const RESOURCE_BOUNDS = {
-    l2_gas: {
-        max_amount: BigInt(process.env.L2_GAS_MAX_AMOUNT || DEFAULTS.L2_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L2_GAS_MAX_PRICE || DEFAULTS.L2_GAS_MAX_PRICE),
-    },
-    l1_gas: {
-        max_amount: BigInt(process.env.L1_GAS_MAX_AMOUNT || DEFAULTS.L1_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L1_GAS_MAX_PRICE || DEFAULTS.L1_GAS_MAX_PRICE),
-    },
-    l1_data_gas: {
-        max_amount: BigInt(process.env.L1_DATA_GAS_MAX_AMOUNT || DEFAULTS.L1_DATA_GAS_MAX_AMOUNT),
-        max_price_per_unit: BigInt(process.env.L1_DATA_GAS_MAX_PRICE || DEFAULTS.L1_DATA_GAS_MAX_PRICE),
-    },
 };
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -93,7 +68,6 @@ async function declare() {
 
     const { transaction_hash, class_hash } = await account.declare(
         { contract: contractClass, casm: casmClass },
-        { resourceBounds: RESOURCE_BOUNDS }
     );
 
     await provider.waitForTransaction(transaction_hash, {
