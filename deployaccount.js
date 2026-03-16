@@ -148,7 +148,7 @@ async function deployAccount() {
         recipient: accountAddress,
         amount: { low: CONFIG.transferAmount, high: 0 },
     });
-    const nonce = await provider.getNonceForAddress(CONFIG.funderAddress, 'latest');
+    const nonce = await provider.getNonceForAddress(CONFIG.funderAddress, CONFIG.blockIdentifier);
     console.log('Funder nonce:', nonce);
     const transferResult = await funderAccount.execute(transferCalldata, {
         nonce,
